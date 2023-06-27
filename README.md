@@ -1,4 +1,4 @@
-# ds-graph-clf-diverse-experiments
+# edgehetero-nodeproppred
 
 Repository for the ["Improving Article Classification Using Edge-Heterogeneous Graph Convolutional Networks"](https://elsevier.atlassian.net/wiki/spaces/RCODS/pages/119601060404383/Improving+Article+Classification+with+Edge-Heterogeneous+Graph+Convolutional+Networks) 2022-2023 UvA MSc DS thesis project. For prior work on this topic, see [this repo](https://github.com/elsevier-research/ds-graph-clf-experiments).
 
@@ -8,7 +8,7 @@ The goal is to implement a data preparation pipeline with edge heterogeneity and
 
 ## File Structure ##
 ```
-ds-graph-clf-diverse-experiments/
+edgehetero-nodeproppred/
 ├─ config/
 │  ├─ data_generation_config.yaml
 │  ├─ gcn_config.yaml
