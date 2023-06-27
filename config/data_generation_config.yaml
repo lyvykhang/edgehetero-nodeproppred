@@ -1,0 +1,4 @@
+seed: 1911
+data:
+  path_to_metadata: "data/tables/ogbn_arxiv_full_metadata.pkl"
+  save_path: "data/data_ogbnarxiv_ref_au_fos_venue.pt"

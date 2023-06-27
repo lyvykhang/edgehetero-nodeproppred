@@ -1,0 +1,26 @@
+seed: 1911
+edge_type_selection:
+  - references
+  - authorship
+  - fos
+  # - venue
+data:
+  graph_dataset: data/ogbnarxiv_heterodata.pt
+  embeddings: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
+optimizer:
+  lr: 0.001
+  weight_decay: 0.005
+scheduler:
+  factor: 0.1 
+  patience: 10 
+  threshold: 0.0001
+  min_lr: 0.00001
+  cooldown: 20
+model:
+  hidden_features: 512
+  num_layers: 2
+early_stop_threshold: 50
+epochs: 500
+runs: 10
+model_path_prefix: models/gcn_ogbnarxiv_ref_au_fos
+# results: models/gcn_ogbnarxiv_ref_au_fos_metrics.pkl
