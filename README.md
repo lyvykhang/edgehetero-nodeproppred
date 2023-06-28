@@ -4,7 +4,7 @@ Repository for the ["Improving Article Classification Using Edge-Heterogeneous G
 
 The code only covers the `ogbn-arxiv` benchmark use case. Work on internal datasets is documented on Databricks, Confluence, and the thesis itself [(Overleaf read-only link)](https://www.overleaf.com/read/fqjgcfrkqtzy). Results and instructions for reproducibility at the end.
 
-The goal is to implement a data preparation pipeline with edge heterogeneity and BERT-based node features to boost accuracy while keeping the model architecture itself relatively lightweight. 
+The goal is to implement a data preparation pipeline with edge heterogeneity and BERT-based node features to boost accuracy while keeping the model architecture itself relatively straightforward. 
 
 ## File Structure ##
 ```
@@ -14,15 +14,16 @@ edgehetero-nodeproppred/
 │  ├─ gcn_config.yaml
 ├─ data/
 │  ├─ embeddings/
-│  ├─ processed/
+│  │  ├─ ogbnarxiv_scibert_tensor_ordered.pt
 │  ├─ tables/
-├─ documents/
+│  │  ├─ ogbnarxiv_mag_metadata.parquet.gzip
 ├─ models/
 ├─ notebooks/
 │  ├─ ogbnarxiv_process_mag_data.ipynb
 ├─ scripts/
 │  ├─ gcn_experiments.py
 │  ├─ models.py
+│  ├─ ogbnarxiv_hetero_transform.py
 │  ├─ utils.py
 ```
 
@@ -31,7 +32,7 @@ The dataset provides the mapping from node IDs to MAG IDs, which is used to retr
   
 The raw texts of titles and abstracts linked under the dataset description [on OGB](https://ogb.stanford.edu/docs/nodeprop/#ogbn-arxiv) are also used.
 
-See the notebook `ogbnarxiv_process_mag_data.ipynb` for relevant code.
+The notebook `ogbnarxiv_process_mag_data.ipynb` is included for reference only. 
 
 ### Edge Types ###
 
@@ -40,7 +41,7 @@ Using the `authors`, `venue`, and `fos` features (fields of study), the followin
 - `(paper, shares_venue_with, paper)`: 2 papers are connected if they were published at the same venue, all edges 1-weighted.
 - `(paper, shares_fos_with, paper)`: 2 papers are connected if they share a field of study, weighted with the no. of shared fields. 
 
-For the latter two, we sample the mean number of IDs associated with a FoS/venue and only create edges between that many nodes for each unique FoS/venue. Otherwise, they lead to massive subgraphs, as the no. of edges explodes due to the combination function. All subgraphs are *undirected*.
+For the latter two, we sample the mean number of IDs associated with a FoS/venue (seed specified in `data_generation_config.yaml`) and only create edges between that many nodes for each unique FoS/venue. Otherwise, they lead to massive subgraphs, as the no. of edges explodes due to the combination function. All subgraphs are *undirected*.
 
 | Type      | \|E\|     | Edge Homophily | Non-Isolated Nodes |
 |-----------|-----------|----------------|--------------------|
@@ -57,7 +58,7 @@ The tensor `ogbnarxiv_scibert_tensor_ordered.pt` contains the inferred SciBERT e
 
 Done on [this Databricks notebook](https://elsevier.cloud.databricks.com/?o=0#notebook/5431542/command/5467567).
 
-### Ablation Results ###
+## Ablation Results (3 Runs) ##
 
 | Model   | Embeddings         | Subgraphs                  | Acc.      | F1        |
 |---------|--------------------|----------------------------|-----------|-----------|
@@ -68,12 +69,11 @@ Done on [this Databricks notebook](https://elsevier.cloud.databricks.com/?o=0#no
 | GCNConv | SciBERT            | Refs, Authors, FoS, Venues | 75%       | 0.743     |
 | GCNConv | SciBERT, N2V       | Refs, Authors, FoS         | 74.8%     | 0.739     |
 
-### Instructions for Use ###
-Clone the repository with Git LFS. 
-#### For environment setup: ####
+## Run Experiments ##
+Clone the repository with Git LFS. For environment setup:
 ```
-conda create --name EHRGCN python=3.10
-conda activate EHRGCN
+conda create --name EHGCN python=3.10
+conda activate EHGCN
 conda install pytorch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 cudatoolkit=11.7 -c pytorch
 conda install -c pyg pytorch-sparse
 conda install -c pyg pytorch-scatter
@@ -83,9 +83,12 @@ pip install tqdm
 pip install ogb
 pip install PyYAML
 ```
+The DataFrame `data/tables/ogbnarxiv_mag_metadata.parquet.gzip` contains the extracted MAG metadata fields, along with the aforementioned raw titles and abstracts.
 
-Run `scripts/gcn_experiments.py` to train model and print results. All relevant parameters can be specified in `config/gcn_config.yaml`. 
+**Generate data**: run `scripts/ogbnarxiv_hetero_transform.py`, which downloads the dataset and saves out the transformed `HeteroData` object.
 
-The data preprocessing code is included for reference, but the SciBERT embeddings (`data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt`) and HeteroData object (`data/data_ogbnarxiv_ref_au_fos_venue.pt`) have both been pre-generated. Also, the DataFrame `data/tables/ogbnarxiv_mag_metadata.parquet.gzip` contains the extracted MAG metadata fields, along with the titles and abstracts from `titleabs.tsv`. 
+**To reproduce**: run `scripts/gcn_experiments.py` to train model and print results. All relevant parameters can be specified in `config/gcn_config.yaml`. 
+
+The SciBERT embeddings are pre-generated and provided at `data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt`. 
 
 

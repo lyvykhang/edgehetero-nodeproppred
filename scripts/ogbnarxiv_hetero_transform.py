@@ -50,8 +50,17 @@ if __name__ == "__main__":
     with open(str(project_root / "config/data_generation_config.yaml")) as f:
         params = yaml.load(f, Loader=yaml.FullLoader)
     
+    dataset = PygNodePropPredDataset("ogbn-arxiv", root="data/")
+    data = dataset[0]
+    splits = dataset.get_idx_split()
+    data = data.to_heterogeneous(node_type_names=["paper"], 
+                                 edge_type_names=[("paper", "references", "paper")])
+    data["paper"].train_idx = splits["train"]
+    data["paper"].val_idx = splits["valid"]
+    data["paper"].test_idx = splits["test"]
+
     path_to_metadata = str(Path(params["data"]["path_to_metadata"]))
-    df = pd.read_pickle(path_to_metadata)
+    df = pd.read_parquet(path_to_metadata)
 
     authorship_input = preprocess(df, "authors", "id")
     authorship_output = generate_edges(authorship_input, kind="authorship", seed=params["seed"])
@@ -63,15 +72,6 @@ if __name__ == "__main__":
     venue_input = preprocess(df, "venue", "id")
     venue_output = generate_edges(venue_input, kind="venue", seed=params["seed"], 
                                   threshold=int(np.mean(venue_input.apply(len))))
-    
-    dataset = PygNodePropPredDataset("ogbn-arxiv", root="data/")
-    data = dataset[0]
-    splits = dataset.get_idx_split()
-    data = data.to_heterogeneous(node_type_names=["paper"], 
-                                 edge_type_names=[("paper", "references", "paper")])
-    data["paper"].train_idx = splits["train"]
-    data["paper"].val_idx = splits["valid"]
-    data["paper"].test_idx = splits["test"]
 
     edge_lists = [authorship_output[0], fos_output[0], venue_output[0]]
     edge_stores = [authorship_output[1], fos_output[1], venue_output[1]]
