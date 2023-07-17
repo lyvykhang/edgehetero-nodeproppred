@@ -6,7 +6,7 @@ Repository for the "Improving Article Classification Using Edge-Heterogeneous Gr
 edgehetero-nodeproppred/
 ├─ config/
 │  ├─ data_generation_config.yaml
-│  ├─ gcn_config.yaml
+│  ├─ experiments_config.yaml
 ├─ data/
 │  ├─ embeddings/
 │  │  ├─ ogbnarxiv_scibert_tensor_ordered.pt
@@ -16,7 +16,7 @@ edgehetero-nodeproppred/
 ├─ notebooks/
 │  ├─ ogbnarxiv_process_mag_data.ipynb
 ├─ scripts/
-│  ├─ gcn_experiments.py
+│  ├─ experiments.py
 │  ├─ models.py
 │  ├─ ogbnarxiv_hetero_transform.py
 │  ├─ utils.py

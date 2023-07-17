@@ -8,8 +8,8 @@ data:
   graph_dataset: data/ogbnarxiv_heterodata.pt
   embeddings: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
 optimizer:
-  lr: 0.001
-  weight_decay: 0.005
+  lr: 0.01
+  weight_decay: 0.001
 scheduler:
   factor: 0.1 
   patience: 10 
@@ -25,4 +25,3 @@ early_stop_threshold: 50
 epochs: 500
 runs: 10
 model_path_prefix: models/gcn
-# results: models/gcn_ogbnarxiv_ref_au_fos_metrics.pkl
