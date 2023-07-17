@@ -14,7 +14,7 @@ scheduler:
   factor: 0.1 
   patience: 10 
   threshold: 0.0001
-  min_lr: 0.00001
+  min_lr: 0.0001
   cooldown: 20
 model:
   name: GCN
