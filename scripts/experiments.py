@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     project_root: Path = utils.get_project_root()
     os.chdir(project_root)
-    with open(str(project_root / "config/gcn_config.yaml")) as f:
+    with open(str(project_root / "config/experiments_config.yaml")) as f:
         params = yaml.load(f, Loader=yaml.FullLoader)
 
     path_to_data = str(Path(params["data"]["graph_dataset"]))
@@ -53,11 +53,6 @@ if __name__ == "__main__":
     print("Loading embeddings...")
     path_scibert = str(Path(params["data"]["embeddings"]))
     data["paper"].x = torch.load(path_scibert)
-    
-    model = models.GCN(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                       len(torch.unique(data["paper"].y)), params["model"]["hidden_features"])
-    model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
-    print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     data.to(DEVICE)
 
@@ -65,11 +60,29 @@ if __name__ == "__main__":
     all_runs_accs = []
 
     for run in range(params["runs"]):
-        models.GCN.reset_parameters(model)
+        if params["model"]["name"] == "GCN": # Re-initialize models.
+            model = models.GCN(params["model"]["num_layers"], data["paper"].x.shape[1], 
+                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
+                params["model"]["dropout"]).to(DEVICE)
+        elif params["model"]["name"] == "SAGE":
+            model = models.SAGE(params["model"]["num_layers"], data["paper"].x.shape[1], 
+                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
+                params["model"]["dropout"]).to(DEVICE)
+        elif params["model"]["name"] == "GCNJKNet":
+            model = models.GCNJKNet(params["model"]["num_layers"], data["paper"].x.shape[1], 
+                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
+                params["model"]["dropout"], mode="cat").to(DEVICE)
+        elif params["model"]["name"] == "SGC":
+            model = models.SGC(params["model"]["num_layers"], data["paper"].x.shape[1], 
+                len(torch.unique(data["paper"].y))).to(DEVICE)
+        
+        model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
+        if run == 0:
+            print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-        optim = [dict(params=conv.parameters(), weight_decay=params["optimizer"]["weight_decay"]) \
-                 if i == 0 else dict(params=conv.parameters(), weight_decay=0) for i, conv in enumerate(model.convs)]
-        optimizer = torch.optim.Adam(optim, lr=params["optimizer"]["lr"]) # weight decay on first conv. only.
+        optimizer = torch.optim.Adam(params=model.parameters(), 
+            weight_decay=params["optimizer"]["weight_decay"], 
+            lr=params["optimizer"]["lr"])
         
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, factor=params["scheduler"]["factor"], 
@@ -104,4 +117,5 @@ if __name__ == "__main__":
     all_runs_accs = torch.tensor(all_runs_accs)
     print(f"##### ALL RUNS #####")
     print(f"Best Val Acc: {all_runs_accs[:, 0].max().item():.4f}, Best Test Acc: {all_runs_accs[:, 1].max().item():.4f}.")
-    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item():.4f} ± {all_runs_accs[:, 0].std().item():.4f}", f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item():.4f} ± {all_runs_accs[:, 1].std().item():.4f}.")
+    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item():.4f} ± {all_runs_accs[:, 0].std().item():.4f}", 
+        f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item():.4f} ± {all_runs_accs[:, 1].std().item():.4f}.")

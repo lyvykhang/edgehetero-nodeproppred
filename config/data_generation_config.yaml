@@ -1,4 +1,4 @@
 seed: 1911
 data:
   path_to_metadata: "data/tables/ogbnarxiv_mag_metadata.parquet.gzip"
-  save_path: "data/ogbnarxiv_heterodata"
+  save_path: "data/ogbnarxiv_heterodata.pt"

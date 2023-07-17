@@ -17,10 +17,12 @@ scheduler:
   min_lr: 0.00001
   cooldown: 20
 model:
-  hidden_features: 512
+  name: GCN
+  hidden_channels: 256
   num_layers: 2
+  dropout: 0.2
 early_stop_threshold: 50
 epochs: 500
 runs: 10
-model_path_prefix: models/gcn_ogbnarxiv_ref_au_fos
+model_path_prefix: models/gcn
 # results: models/gcn_ogbnarxiv_ref_au_fos_metrics.pkl
