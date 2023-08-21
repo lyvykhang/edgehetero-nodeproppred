@@ -24,14 +24,17 @@ def train(model, data, train_idx, optimizer):
 
 
 @torch.no_grad()
-def test(model, data, idx, out=None):
+def test(model, data, idx, dataset, out=None):
     model.eval()
     
     out = model(data.x_dict, data.adj_t_dict)['paper'] if out is None else out
     loss = F.nll_loss(out[idx], data["paper"].y[idx].squeeze())
     y_pred = out[idx].argmax(dim=-1, keepdim=True)
-    evaluator = Evaluator(name="ogbn-arxiv")
-    acc = evaluator.eval({"y_true": data["paper"].y[idx], "y_pred": y_pred})["acc"]
+    if dataset == "ogbnarxiv":
+        evaluator = Evaluator(name="ogbn-arxiv")
+        acc = evaluator.eval({"y_true": data["paper"].y[idx], "y_pred": y_pred})["acc"]
+    else:
+        acc = int((y_pred == data["paper"].y[idx]).sum()) / int(idx.shape[0])
 
     return acc, loss
 
@@ -45,22 +48,22 @@ if __name__ == "__main__":
     with open(str(project_root / "config/experiments_config.yaml")) as f:
         params = yaml.load(f, Loader=yaml.FullLoader)
 
-    path_to_data = str(Path(params["data"]["graph_dataset"]))
+    path_to_data = str(Path(params["data"]["graph_dataset"][params["dataset"]]))
     data = torch.load(path_to_data)
 
-    data = data.edge_type_subgraph(utils.edge_type_selection(params["edge_type_selection"]))
+    data = data.edge_type_subgraph(utils.edge_type_selection(params["edge_type_selection"][params["dataset"]]))
 
-    print("Loading embeddings...")
-    path_scibert = str(Path(params["data"]["embeddings"]))
-    data["paper"].x = torch.load(path_scibert)
+    if params["use_scibert"]:
+        path_scibert = str(Path(params["data"]["embeddings"][params["dataset"]]))
+        data["paper"].x = torch.load(path_scibert)
 
     data.to(DEVICE)
 
-    path_to_model = str(Path(params["model_path_prefix"]))
+    path_to_model = f"models/{params['dataset']}_{params['model']['name']}"
     all_runs_accs = []
 
     for run in range(params["runs"]):
-        if params["model"]["name"] == "GCN": # Re-initialize models.
+        if params["model"]["name"] == "GCN":
             model = models.GCN(params["model"]["num_layers"], data["paper"].x.shape[1], 
                 len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
                 params["model"]["dropout"]).to(DEVICE)
@@ -79,6 +82,17 @@ if __name__ == "__main__":
         model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
         if run == 0:
             print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+        
+        if params["dataset"] == "ogbnarxiv":
+            train_idx, val_idx, test_idx = data["paper"].train_idx, data["paper"].val_idx, data["paper"].test_idx
+        else: # Randomly split nodes of each class.
+            splits = [torch.empty(0, dtype=torch.long)]*3
+            for i in range(0, data["paper"].y.unique().shape[0]):
+                per_class = torch.tensor(range(data["paper"].y.shape[0]))[(data["paper"].y == i).squeeze()]
+                per_class_split = utils.train_valid_test(set(per_class.tolist()), 0.2, 0.2, run) # use run no. as seed.
+                for j in range(0, 3):
+                    splits[j] = torch.cat((splits[j], per_class_split[j]))
+            train_idx, val_idx, test_idx = splits
 
         optimizer = torch.optim.Adam(params=model.parameters(), 
             weight_decay=params["optimizer"]["weight_decay"], 
@@ -93,9 +107,9 @@ if __name__ == "__main__":
 
         best_acc = best_epoch = -1
         for epoch in tqdm(range(params["epochs"]), desc=f"Run {run:02d}"):
-            train_loss, out = train(model, data, data["paper"].train_idx, optimizer)
+            train_loss, out = train(model, data, train_idx, optimizer)
 
-            val_acc, val_loss = test(model, data, data["paper"].val_idx, out=out)
+            val_acc, val_loss = test(model, data, val_idx, params["dataset"], out=out)
             scheduler.step(val_loss)
 
             if val_acc > best_acc:
@@ -107,7 +121,7 @@ if __name__ == "__main__":
                 break
 
         model.load_state_dict(torch.load(f"{path_to_model}_run{run}_best.pth"))
-        test_acc, test_loss = test(model, data, data["paper"].test_idx)
+        test_acc, test_loss = test(model, data, test_idx, params["dataset"])
 
         tqdm.write(f"Run {run:02d}: Best Epoch {best_epoch:02d}, Best Val Acc {best_acc:.4f}, Test Acc {test_acc:.4f}.")
         all_runs_accs.append([best_acc, test_acc])

@@ -5,43 +5,9 @@ import utils
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from itertools import combinations
-from collections import Counter
-import random
 import torch
 import torch_geometric.transforms as T
 from ogb.nodeproppred import PygNodePropPredDataset
-
-
-def generate_edges(data, kind, seed, threshold=None):
-    edge_list = []
-    random.seed(seed)
-
-    for ids in tqdm(data, desc=f"Generating '{kind}' Edges"):
-        if len(ids) > 1:
-            if threshold is not None:
-                if len(ids) > threshold:
-                    ids = random.sample(ids, threshold)
-            edge_list.extend([edge for edge in combinations(sorted(ids), 2)])
-
-    counts = Counter(edge_list)
-    edge_list = {kind : list(counts.keys())}
-    edge_stores = {kind : list(counts.values())}
-
-    return edge_list, edge_stores
-
-
-def preprocess(df, col, attr):
-    temp_df = df.copy().dropna(subset=[col]).reset_index()[["index", col]]
-
-    if col == "venue":
-        temp_df[col] = pd.Series([x[attr] if attr in x.keys() else None for x in temp_df[col]], dtype=object)
-    else:
-        temp_df[col] = [[x[attr] for x in xs] for xs in temp_df[col]]
-
-    grouped = temp_df.drop_duplicates(subset=["index"]).explode(col).groupby(col)["index"].apply(lambda x: x.tolist())
-    return grouped
 
 
 if __name__ == "__main__":
@@ -59,18 +25,18 @@ if __name__ == "__main__":
     data["paper"].val_idx = splits["valid"]
     data["paper"].test_idx = splits["test"]
 
-    path_to_metadata = str(Path(params["data"]["path_to_metadata"]))
+    path_to_metadata = str(Path(params["data"]["path_to_metadata"]["ogbnarxiv"]))
     df = pd.read_parquet(path_to_metadata)
 
-    authorship_input = preprocess(df, "authors", "id")
-    authorship_output = generate_edges(authorship_input, kind="authorship", seed=params["seed"])
+    authorship_input = utils.preprocess(df, "authors", "index", "id")
+    authorship_output = utils.generate_edges(authorship_input, kind="authorship", seed=params["seed"])
 
-    fos_input = preprocess(df, "fos", "name")
-    fos_output = generate_edges(fos_input, kind="fos", seed=params["seed"], 
+    fos_input = utils.preprocess(df, "fos", "index", "name")
+    fos_output = utils.generate_edges(fos_input, kind="fos", seed=params["seed"], 
                                 threshold=int(np.mean(fos_input.apply(len))))
 
-    venue_input = preprocess(df, "venue", "id")
-    venue_output = generate_edges(venue_input, kind="venue", seed=params["seed"], 
+    venue_input = utils.preprocess(df, "venue", "index", "id")
+    venue_output = utils.generate_edges(venue_input, kind="venue", seed=params["seed"], 
                                   threshold=int(np.mean(venue_input.apply(len))))
 
     edge_lists = [authorship_output[0], fos_output[0], venue_output[0]]
@@ -95,7 +61,7 @@ if __name__ == "__main__":
     transform = T.Compose([T.ToUndirected(reduce="mean"), T.ToSparseTensor(attr="edge_stores", remove_edge_index=False)])
     data = transform(data)
 
-    save_path = str(Path(params["data"]["save_path"]))
+    save_path = str(Path(params["data"]["save_path"]["ogbnarxiv"]))
     torch.save(data, save_path)
     
 

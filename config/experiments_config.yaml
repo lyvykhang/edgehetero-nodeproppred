@@ -1,12 +1,24 @@
 seed: 1911
-edge_type_selection:
-  - references
-  - authorship
-  - fos
-  # - venue
+dataset: ogbnarxiv # ogbnarxiv/pubmed.
+edge_type_selection: # (un-)comment accordingly to specify used subgraphs.
+  ogbnarxiv:
+    - references
+    - author
+    - fos
+    # - venue
+  pubmed:
+    - references
+    - author
+    # - mesh
+    # - journal
+use_scibert: True # set to False if testing the default SkipGram/BoW features.
 data:
-  graph_dataset: data/ogbnarxiv_heterodata.pt
-  embeddings: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
+  graph_dataset:
+    ogbnarxiv: data/ogbnarxiv_heterodata.pt
+    pubmed: data/pubmed_heterodata.pt
+  embeddings: 
+    ogbnarxiv: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
+    pubmed: data/embeddings/pubmed_scibert_tensor_ordered.pt
 optimizer:
   lr: 0.01
   weight_decay: 0.001
@@ -24,4 +36,3 @@ model:
 early_stop_threshold: 50
 epochs: 500
 runs: 10
-model_path_prefix: models/gcn

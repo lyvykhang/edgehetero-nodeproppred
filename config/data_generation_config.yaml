@@ -1,4 +1,9 @@
 seed: 1911
 data:
-  path_to_metadata: "data/tables/ogbnarxiv_mag_metadata.parquet.gzip"
-  save_path: "data/ogbnarxiv_heterodata.pt"
+  path_to_metadata: 
+    ogbnarxiv: "data/tables/ogbnarxiv_mag_metadata.parquet.gzip"
+    pubmed: "data/tables/pubmed_metadata.parquet.gzip"
+    pubmed_refs: "data/tables/Pubmed-Diabetes.DIRECTED.cites.tab"
+  save_path:
+    ogbnarxiv: "data/ogbnarxiv_heterodata.pt"
+    pubmed: "data/pubmed_heterodata.pt"
