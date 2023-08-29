@@ -1,5 +1,7 @@
 # edgehetero-nodeproppred
 
+![](ehgnn_cover_art.png)
+
 Repository for the "Improving Article Classification Using Edge-Heterogeneous Graph Neural Networks" 2022-2023 UvA MSc DS thesis project, in collaboration with Elsevier.
 
 ## Directory ##
@@ -9,7 +11,7 @@ edgehetero-nodeproppred/
 │  ├─ data_generation_config.yaml
 │  ├─ experiments_config.yaml
 ├─ data/
-│  ├─ embeddings/
+│  ├─ embeddings/                               # downloaded separately (see below).
 │  │  ├─ ogbnarxiv_scibert_tensor_ordered.pt
 │  │  ├─ pubmed_scibert_tensor_ordered.pt
 │  ├─ tables/
@@ -44,11 +46,11 @@ pip install ogb
 pip install PyYAML
 ```
 
-The SciBERT embeddings are pre-computed; download links for [`ogbn-arxiv`](https://drive.google.com/file/d/1XubiRS2wqlR-_XcK7AGgITT0Cdx0mtdN/view?usp=share_link) and [PubMed](https://drive.google.com/file/d/1yrIJE0ko6sErUugBnN_GJCe-zqiDPwzV/view?usp=share_link). Place them in `data/embeddings`.
+The SciBERT embeddings are pre-computed; download links for [ogbn-arxiv](https://drive.google.com/file/d/1XubiRS2wqlR-_XcK7AGgITT0Cdx0mtdN/view?usp=share_link) and [PubMed](https://drive.google.com/file/d/1yrIJE0ko6sErUugBnN_GJCe-zqiDPwzV/view?usp=share_link). Place them in `data/embeddings`.
 
 **Generate data**: run `ogbnarxiv_hetero_transform.py` and/or `pubmed_hetero_transform.py` in `scripts`, which generates and transforms the data object using the metadata files in `data/tables`.
 
-**To reproduce**: run `scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the `ogbn-arxiv` GCN results. 
+**To reproduce**: run `scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the ogbn-arxiv GCN results. 
 
 ## Results ##
 10-run average results on full-supervised transductive node classification. See the paper (pending) for ablation results and parameter choices to reproduce individual cases.
