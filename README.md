@@ -43,7 +43,13 @@ pip install tqdm
 pip install ogb==1.3.6
 pip install PyYAML
 ```
-Replace ${CUDA} with cpu/cu116/cu117 depending on PyTorch installation.
+Replace \${CUDA} with cpu/cu116/cu117 depending on PyTorch installation. On M1 Macs, the additional PyG libraries must be installed from source, i.e. replace `pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-1.13.1+${CUDA}.html` with:
+
+```
+pip install cmake
+pip install git+https://github.com/pyg-team/pyg-lib.git 
+pip install torch_scatter torch_sparse torch_cluster torch_spline_conv
+```
 
 The SciBERT embeddings are pre-computed; download links for [ogbn-arxiv](https://drive.google.com/file/d/1XubiRS2wqlR-_XcK7AGgITT0Cdx0mtdN/view?usp=share_link) and [PubMed](https://drive.google.com/file/d/1yrIJE0ko6sErUugBnN_GJCe-zqiDPwzV/view?usp=share_link). Place them in `data/embeddings`.
 
