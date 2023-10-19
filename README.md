@@ -2,7 +2,7 @@
 
 ![](ehgnn_cover_art.png)
 
-Repository for the "Improving Article Classification Using Edge-Heterogeneous Graph Neural Networks" 2022-2023 UvA MSc DS thesis project, in collaboration with Elsevier.
+Repository for the "Improving Article Classification Using Edge-Heterogeneous Graph Neural Networks" 2022-2023 UvA MSc DS thesis project, in collaboration with Elsevier. Preprint on arXiv: https://arxiv.org/abs/2309.11341.
 
 ## Directory ##
 ```
@@ -31,34 +31,28 @@ edgehetero-nodeproppred/
 ├─ ehgnn_ogbnarxiv_technical_report.pdf
 ```
 
-## Reproduce Experiments ##
-Clone the repository with Git LFS. For environment setup:
-```
-conda create --name EHGNN python=3.10
-conda activate EHGNN
-conda install pytorch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 -c pytorch
-pip install torch_geometric
-pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-1.13.1+${CUDA}.html
-pip install tqdm
-pip install ogb==1.3.6
-pip install PyYAML
-```
-Replace \${CUDA} with cpu/cu116/cu117 depending on PyTorch installation. On M1 Macs, the additional PyG libraries must be installed from source, i.e. replace `pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-1.13.1+${CUDA}.html` with:
+## Requirements
+* Python 3.10
+* PyTorch 1.13.1
+* PyTorch Geometric 2.3.0 (+ pyg-lib, torch-sparse, torch-scatter)
+* OGB 1.3.6
+* Pandas
+* NumPy
+* tqdm
+* PyArrow
+* PyYAML
 
-```
-pip install cmake
-pip install git+https://github.com/pyg-team/pyg-lib.git 
-pip install torch_scatter torch_sparse torch_cluster torch_spline_conv
-```
+## Reproduce Experiments ##
+Repository should be cloned with Git LFS.
 
 The SciBERT embeddings are pre-computed; download links for [ogbn-arxiv](https://drive.google.com/file/d/1XubiRS2wqlR-_XcK7AGgITT0Cdx0mtdN/view?usp=share_link) and [PubMed](https://drive.google.com/file/d/1yrIJE0ko6sErUugBnN_GJCe-zqiDPwzV/view?usp=share_link). Place them in `data/embeddings`.
 
-**Generate data**: run `ogbnarxiv_hetero_transform.py` and/or `pubmed_hetero_transform.py` in `scripts`, which generates and transforms the data object using the metadata files in `data/tables`.
+**Generate data**: run `python scripts/ogbnarxiv_hetero_transform.py` and/or `python scripts/pubmed_hetero_transform.py`, which generates and transforms the data object using the metadata files in `data/tables`.
 
-**To reproduce**: run `scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the ogbn-arxiv GCN results. 
+**To reproduce**: run `python scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the ogbn-arxiv GCN results. 
 
 ## Results ##
-10-run average results on full-supervised transductive node classification. See the paper (pending) for ablation results and parameter choices to reproduce individual cases.
+10-run average results on full-supervised transductive node classification. See the paper for ablation results and parameter choices to reproduce individual cases.
 
 **ogbn-arxiv (provided split):**
 | Model  	| Val. Acc.     	| Test Acc.     	| # Params  	|
