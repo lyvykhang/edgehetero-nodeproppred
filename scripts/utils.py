@@ -110,3 +110,13 @@ def train_valid_test(nodes, test_size, valid_size, random_state):
     test_mask = torch.tensor(list(test), dtype=torch.long)
 
     return train_mask, valid_mask, test_mask
+
+
+def per_class_idx_split(data, random_state):
+    splits = [torch.empty(0, dtype=torch.long)]*3
+    for i in range(0, data["paper"].y.unique().shape[0]):
+        per_class = torch.tensor(range(data["paper"].y.shape[0]))[(data["paper"].y == i).squeeze()]
+        per_class_split = train_valid_test(set(per_class.tolist()), 0.2, 0.2, random_state) # use run no. as seed.
+        for j in range(0, 3):
+            splits[j] = torch.cat((splits[j], per_class_split[j]))
+    return splits # train, val, test

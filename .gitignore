@@ -108,3 +108,5 @@ ENV/
 # custom
 .DS*
 *.pt
+data/ogbn_arxiv
+*.emb

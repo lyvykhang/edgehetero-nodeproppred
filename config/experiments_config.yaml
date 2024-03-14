@@ -1,38 +1,38 @@
 seed: 1911
-dataset: ogbnarxiv # ogbnarxiv/pubmed.
+dataset: pubmed # ogbnarxiv/pubmed.
 edge_type_selection: # (un-)comment accordingly to specify used subgraphs.
   ogbnarxiv:
     - references
     - author
-    - fos
     # - venue
+    - fos
   pubmed:
     - references
     - author
-    # - mesh
     # - journal
-use_scibert: True # set to False if testing the default SkipGram/BoW features.
+    # - mesh
+node_embs: simtg # set to anything not containing [scibert, simtg, tape] to use default embs.
 data:
   graph_dataset:
     ogbnarxiv: data/ogbnarxiv_heterodata.pt
     pubmed: data/pubmed_heterodata.pt
-  embeddings: 
+  scibert_embs: 
     ogbnarxiv: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
     pubmed: data/embeddings/pubmed_scibert_tensor_ordered.pt
+  simtg_embs:
+    ogbnarxiv: data/embeddings/ogbnarxiv_simtg_x_embs.pt
+    pubmed: data/embeddings/pubmed_simtg_x_embs.pt
+  tape_embs: 
+    ogbnarxiv: data/embeddings/ogbnarxiv-tape-seed0.emb
+    pubmed: data/embeddings/pubmed-tape-seed0.emb
 optimizer:
-  lr: 0.01
-  weight_decay: 0.001
-scheduler:
-  factor: 0.1 
-  patience: 10 
-  threshold: 0.0001
-  min_lr: 0.0001
-  cooldown: 20
+  lr: 0.001
+  weight_decay: 0.005
 model:
   name: GCN
-  hidden_channels: 256
+  hidden_channels: 128
   num_layers: 2
-  dropout: 0.2
-early_stop_threshold: 50
+  dropout: 0
+early_stop_threshold: 20
 epochs: 500
-runs: 10
+runs: 3

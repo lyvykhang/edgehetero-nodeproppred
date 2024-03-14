@@ -1,14 +1,16 @@
 from pathlib import Path
 import os
 import yaml
-import utils
-import models
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import to_hetero
 from tqdm import tqdm
 from ogb.nodeproppred import Evaluator
+
+import utils
+import models
 
 
 def train(model, data, train_idx, optimizer):
@@ -47,15 +49,25 @@ if __name__ == "__main__":
     os.chdir(project_root)
     with open(str(project_root / "config/experiments_config.yaml")) as f:
         params = yaml.load(f, Loader=yaml.FullLoader)
+    with open(str(project_root / "config/data_generation_config.yaml")) as f:
+        data_gen_params = yaml.load(f, Loader=yaml.FullLoader)
 
     path_to_data = str(Path(params["data"]["graph_dataset"][params["dataset"]]))
     data = torch.load(path_to_data)
 
     data = data.edge_type_subgraph(utils.edge_type_selection(params["edge_type_selection"][params["dataset"]]))
 
-    if params["use_scibert"]:
-        path_scibert = str(Path(params["data"]["embeddings"][params["dataset"]]))
-        data["paper"].x = torch.load(path_scibert)
+    if any(i in params["node_embs"] for i in ["simtg", "tape"]):
+        path_embs = str(Path(params["data"][f"{params['node_embs']}_embs"][params["dataset"]]))
+        if params["node_embs"] == "tape":
+            features = np.array(np.memmap(path_embs, mode='r', dtype=np.float16, shape=(19717, 768)))
+            if params["dataset"] == "pubmed":
+                features = np.delete(features, [2459], axis=0) # manually remove index corresponding to ID with no metadata.
+            data["paper"].x = torch.from_numpy(features).to(torch.float32)
+        else:
+            data["paper"].x = torch.load(path_embs).type(torch.float32)
+
+    print("Loaded pre-trained node embeddings of type={} and shape={}.".format(params["node_embs"], data["paper"].x.shape))
 
     data.to(DEVICE)
 
@@ -83,34 +95,25 @@ if __name__ == "__main__":
         if run == 0:
             print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
         
-        if params["dataset"] == "ogbnarxiv":
+        if params["dataset"] == "ogbnarxiv" or (params["dataset"] == "pubmed" and data_gen_params["pubmed_fixed_split"]):
             train_idx, val_idx, test_idx = data["paper"].train_idx, data["paper"].val_idx, data["paper"].test_idx
-        else: # Randomly split nodes of each class.
-            splits = [torch.empty(0, dtype=torch.long)]*3
-            for i in range(0, data["paper"].y.unique().shape[0]):
-                per_class = torch.tensor(range(data["paper"].y.shape[0]))[(data["paper"].y == i).squeeze()]
-                per_class_split = utils.train_valid_test(set(per_class.tolist()), 0.2, 0.2, run) # use run no. as seed.
-                for j in range(0, 3):
-                    splits[j] = torch.cat((splits[j], per_class_split[j]))
-            train_idx, val_idx, test_idx = splits
+        else: # Randomly split nodes of each class. Not compatible with SimTG.
+            data.to(torch.device("cpu"))
+            train_idx, val_idx, test_idx = utils.per_class_idx_split(data, run) # use run no. as seed.
+            data.to(DEVICE)
 
         optimizer = torch.optim.Adam(params=model.parameters(), 
             weight_decay=params["optimizer"]["weight_decay"], 
             lr=params["optimizer"]["lr"])
         
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=params["scheduler"]["factor"], 
-            patience=params["scheduler"]["patience"], 
-            threshold=params["scheduler"]["threshold"], 
-            min_lr=params["scheduler"]["min_lr"], 
-            cooldown=params["scheduler"]["cooldown"])
+        scheduler = torch.optim.lr_scheduler.LinearLR(optimizer)
 
         best_acc = best_epoch = -1
         for epoch in tqdm(range(params["epochs"]), desc=f"Run {run:02d}"):
             train_loss, out = train(model, data, train_idx, optimizer)
 
             val_acc, val_loss = test(model, data, val_idx, params["dataset"], out=out)
-            scheduler.step(val_loss)
+            scheduler.step()
 
             if val_acc > best_acc:
                 best_acc = val_acc
@@ -129,7 +132,7 @@ if __name__ == "__main__":
     # data.to(torch.device("cpu"))
 
     all_runs_accs = torch.tensor(all_runs_accs)
-    print(f"##### ALL RUNS #####")
+    print("* ============================= ALL RUNS =============================")
     print(f"Best Val Acc: {all_runs_accs[:, 0].max().item():.4f}, Best Test Acc: {all_runs_accs[:, 1].max().item():.4f}.")
     print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item():.4f} ± {all_runs_accs[:, 0].std().item():.4f}", 
         f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item():.4f} ± {all_runs_accs[:, 1].std().item():.4f}.")

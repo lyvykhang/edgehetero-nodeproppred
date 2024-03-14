@@ -16,7 +16,7 @@ def remapper(internal_eids, edge_lists):
     """Remaps node names (and subsequently edge lists) into a sequential index (0 ... no. nodes). 
 
     Args:
-        internal_eids (set): set of all supervised EIDs.
+        internal_eids (list): set of all supervised EIDs.
         edge_lists (list): list of edge dicts {edge type : edge list} for all relationship types. 
     
     Output:
@@ -50,7 +50,8 @@ def generate_data(df, node_map, inv_node_map, edge_lists_remap, edge_stores, dev
     edge_stores = {k : torch.tensor(v, dtype=torch.float32) for d in edge_stores for k, v in d.items()}
     edge_lists_stores = {k : [v1.T, v2] for k, v1, v2 in utils.zip_dicts(edge_lists, edge_stores)}
 
-    y = list(df.set_index("pmid").loc[list(inv_node_map.keys())[:len(df)]].reset_index()["label"].values)
+    # y = list(df.set_index("pmid").loc[list(inv_node_map.keys())[:len(df)]].reset_index()["label"].values)
+    y = df["label"].values
     y_tensor = torch.tensor(y, dtype=torch.long, device=device)
     y_tensor = torch.unsqueeze(y_tensor, 0).T
     
@@ -85,7 +86,7 @@ if __name__ == "__main__":
         for line in csv.reader(tsv, delimiter="\t"):
             records.append(line)
     refs_edgelist = [(int(r[1].split(":")[1]), int(r[-1].split(":")[1])) for r in records[2:]]
-    refs_edgelist = [(e1, e2) for (e1, e2) in refs_edgelist if e1 != 17874530 and e2 != 17874530] # 17874530 is the one PMID with no available metadata.
+    refs_edgelist = [(e1, e2) for (e1, e2) in refs_edgelist if e1 != 17874530 and e2 != 17874530] # 17874530 is the one PMID with no available metadata; manually remove.
     refs_output = [{"references" : refs_edgelist}, {"references" : np.ones(len(refs_edgelist)).tolist()}]
 
     authorship_output = utils.generate_edges(utils.preprocess(df, "authors", "pmid"), "authorship", params["seed"])
@@ -95,22 +96,17 @@ if __name__ == "__main__":
     mesh_input = utils.preprocess(df, "mesh", "pmid")
     mesh_output = utils.generate_edges(mesh_input, "mesh", params["seed"], int(np.mean(mesh_input.apply(len))))
 
-    node_map, inv_node_map, edge_lists_remap = remapper(set(df["pmid"]), [refs_output[0], authorship_output[0], mesh_output[0], srcid_output[0]])
+    node_map, inv_node_map, edge_lists_remap = remapper(df["pmid"].to_list(), [refs_output[0], authorship_output[0], mesh_output[0], srcid_output[0]])
 
     data = generate_data(df, node_map, inv_node_map, edge_lists_remap, 
         [refs_output[1], authorship_output[1], mesh_output[1], srcid_output[1]], torch.device("cpu"))
-    data.inv_node_map = [inv_node_map] # Needed for re-ordering embeddings.
-    data["paper"].x = torch.tensor(np.stack(df.set_index("pmid").loc[list(data.inv_node_map[0].keys())].tfidf)).float()
+    # data.inv_node_map = [inv_node_map] # Needed for re-ordering embeddings.
+    # data["paper"].x = torch.tensor(np.stack(df.set_index("pmid").loc[list(data.inv_node_map[0].keys())].tfidf)).float()
+    data["paper"].x = torch.tensor(np.stack(df["tfidf"])).float()
+
+    if params["pubmed_fixed_split"]:
+        splits = utils.per_class_idx_split(data, params["seed"])
+        data["paper"].train_idx, data["paper"].val_idx, data["paper"].test_idx = splits
 
     save_path = str(Path(params["data"]["save_path"]["pubmed"]))
     torch.save(data, save_path)
-    
-
-
-
-
-
-
-
-
-
