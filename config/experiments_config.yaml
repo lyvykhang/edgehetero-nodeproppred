@@ -1,24 +1,21 @@
 seed: 1911
-dataset: pubmed # ogbnarxiv/pubmed.
+dataset: ogbnarxiv # ogbnarxiv/pubmed.
 edge_type_selection: # (un-)comment accordingly to specify used subgraphs.
   ogbnarxiv:
     - references
     - author
-    # - venue
-    - fos
+    - venue
+    # - fos
   pubmed:
     - references
     - author
     # - journal
     # - mesh
-node_embs: simtg # set to anything not containing [scibert, simtg, tape] to use default embs.
+node_embs: simtg # default/simtg/tape.
 data:
   graph_dataset:
     ogbnarxiv: data/ogbnarxiv_heterodata.pt
     pubmed: data/pubmed_heterodata.pt
-  scibert_embs: 
-    ogbnarxiv: data/embeddings/ogbnarxiv_scibert_tensor_ordered.pt
-    pubmed: data/embeddings/pubmed_scibert_tensor_ordered.pt
   simtg_embs:
     ogbnarxiv: data/embeddings/ogbnarxiv_simtg_x_embs.pt
     pubmed: data/embeddings/pubmed_simtg_x_embs.pt
@@ -27,9 +24,9 @@ data:
     pubmed: data/embeddings/pubmed-tape-seed0.emb
 optimizer:
   lr: 0.001
-  weight_decay: 0.005
+  weight_decay: 0
 model:
-  name: GCN
+  name: SAGE
   hidden_channels: 128
   num_layers: 2
   dropout: 0

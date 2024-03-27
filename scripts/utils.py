@@ -12,67 +12,10 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent
 
 
-def preprocess(df, col, id, attr=None):
-    """Outputs all unique entities (e.g. author IDs) and a list of 
-    their associated papers (e.g. papers that author (co-)authored).
-
-    Args:
-        df (pd.DataFrame): DF containing the metadata.
-        col (str): name of the column for the entity of interest.
-        id (str): name of the index column, "index" (arxiv)/"pmid" (pubmed).
-        attr (str): only used for ogbn-arxiv - name of nested attribute.
-
-    Output:
-        grouped (pd.Series): as described above.
-    """
-    temp_df = df.copy().dropna(subset=[col]).reset_index()[[id, col]]
-
-    if attr is not None:
-        if col == "venue":
-            temp_df[col] = pd.Series([x[attr] if attr in x.keys() else None for x in temp_df[col]], dtype=object)
-        else:
-            temp_df[col] = [[x[attr] for x in xs] for xs in temp_df[col]]
-
-    grouped = temp_df.drop_duplicates(subset=[id]).explode(col).groupby(col)[id].apply(lambda x: x.tolist())
-    return grouped
-
-
-def generate_edges(data, kind, seed, threshold=None):
-    """For each unique attribute entity, e.g. author/journal/etc., 
-    generates edges via pairwise combinations of their associated paper IDs.
-
-    Args:
-        data (pd.Series): output of `preprocess()`.
-        kind (str): "references", "authorship", "fos", "mesh", "venue", "journal".
-        seed (int): random seed (only used if `threshold` is specified).
-        threshold (int): sample `threshold` paper IDs and only create pairwise combinations 
-            between at most that many papers per unique entity. 
-    
-    Output:
-        edge_list (dict): dict value = list of unique edges.
-        edge_stores (dict): dict value = edge weight. 
-    """
-    edge_list = []
-    random.seed(seed)
-
-    for ids in tqdm(data, desc=f"Generating '{kind}' Edges"):
-        if len(ids) > 1:
-            if threshold is not None:
-                if len(ids) > threshold:
-                    ids = random.sample(ids, threshold)
-            edge_list.extend([edge for edge in combinations(sorted(ids), 2)])
-
-    counts = Counter(edge_list)
-    edge_list = {kind : list(counts.keys())}
-    edge_stores = {kind : list(counts.values())}
-
-    return edge_list, edge_stores
-
-
 def zip_dicts(*dcts):
-    """Yields tuples aggregating values from common keys (similar to
+    """
+    UNUSED: Yields tuples aggregating values from common keys (similar to
     the zip() function, but for dicts).
-    Helper function for generate_data() (see generate_graph_data.py).
 
     Args:
         dcts (*dict): any number of dicts to zip.
@@ -116,7 +59,7 @@ def per_class_idx_split(data, random_state):
     splits = [torch.empty(0, dtype=torch.long)]*3
     for i in range(0, data["paper"].y.unique().shape[0]):
         per_class = torch.tensor(range(data["paper"].y.shape[0]))[(data["paper"].y == i).squeeze()]
-        per_class_split = train_valid_test(set(per_class.tolist()), 0.2, 0.2, random_state) # use run no. as seed.
+        per_class_split = train_valid_test(set(per_class.tolist()), 0.2, 0.2, random_state)
         for j in range(0, 3):
             splits[j] = torch.cat((splits[j], per_class_split[j]))
-    return splits # train, val, test
+    return splits # train, val, test.

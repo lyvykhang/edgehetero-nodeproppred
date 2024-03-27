@@ -41,6 +41,29 @@ def test(model, data, idx, dataset, out=None):
     return acc, loss
 
 
+def get_model(verbose=False):
+    num_layers = params["model"]["num_layers"]
+    in_channels = data["paper"].x.shape[1]
+    out_channels = len(torch.unique(data["paper"].y))
+    hidden_channels = params["model"]["hidden_channels"]
+    dropout = params["model"]["dropout"]
+
+    if params["model"]["name"] == "GCN":
+        model = models.GCN(num_layers, in_channels, out_channels, hidden_channels, dropout).to(DEVICE)
+    elif params["model"]["name"] == "SAGE":
+        model = models.SAGE(num_layers, in_channels, out_channels, hidden_channels, dropout).to(DEVICE)
+    elif params["model"]["name"] == "GCNJKNet":
+        model = models.GCNJKNet(num_layers, in_channels, out_channels, hidden_channels, dropout, mode="max").to(DEVICE)
+    elif params["model"]["name"] == "SGC":
+        model = models.SGC(num_layers, in_channels, out_channels).to(DEVICE)
+    
+    model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
+    if verbose:
+        print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+
+    return model
+
+
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Will run on: {DEVICE}.")
@@ -60,9 +83,10 @@ if __name__ == "__main__":
     if any(i in params["node_embs"] for i in ["simtg", "tape"]):
         path_embs = str(Path(params["data"][f"{params['node_embs']}_embs"][params["dataset"]]))
         if params["node_embs"] == "tape":
-            features = np.array(np.memmap(path_embs, mode='r', dtype=np.float16, shape=(19717, 768)))
+            init_x_shape = (19717, 768) if params["dataset"] == "pubmed" else (data["paper"].num_nodes, 768)
+            features = np.array(np.memmap(path_embs, mode='r', dtype=np.float16, shape=init_x_shape))
             if params["dataset"] == "pubmed":
-                features = np.delete(features, [2459], axis=0) # manually remove index corresponding to ID with no metadata.
+                features = np.delete(features, [2459], axis=0) # manually remove index corresponding to ID with no metadata from the precomputed embeddings.
             data["paper"].x = torch.from_numpy(features).to(torch.float32)
         else:
             data["paper"].x = torch.load(path_embs).type(torch.float32)
@@ -75,29 +99,11 @@ if __name__ == "__main__":
     all_runs_accs = []
 
     for run in range(params["runs"]):
-        if params["model"]["name"] == "GCN":
-            model = models.GCN(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"]).to(DEVICE)
-        elif params["model"]["name"] == "SAGE":
-            model = models.SAGE(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"]).to(DEVICE)
-        elif params["model"]["name"] == "GCNJKNet":
-            model = models.GCNJKNet(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"], mode="cat").to(DEVICE)
-        elif params["model"]["name"] == "SGC":
-            model = models.SGC(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y))).to(DEVICE)
-        
-        model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
-        if run == 0:
-            print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+        model = get_model(verbose=True) if run == 0 else get_model()
         
         if params["dataset"] == "ogbnarxiv" or (params["dataset"] == "pubmed" and data_gen_params["pubmed_fixed_split"]):
             train_idx, val_idx, test_idx = data["paper"].train_idx, data["paper"].val_idx, data["paper"].test_idx
-        else: # Randomly split nodes of each class. Not compatible with SimTG.
+        else: # Randomly split nodes of each class; not compatible with SimTG (fixed split is required to finetune the LM).
             data.to(torch.device("cpu"))
             train_idx, val_idx, test_idx = utils.per_class_idx_split(data, run) # use run no. as seed.
             data.to(DEVICE)
@@ -128,11 +134,12 @@ if __name__ == "__main__":
 
         tqdm.write(f"Run {run:02d}: Best Epoch {best_epoch:02d}, Best Val Acc {best_acc:.4f}, Test Acc {test_acc:.4f}.")
         all_runs_accs.append([best_acc, test_acc])
+        torch.cuda.empty_cache()
     
     # data.to(torch.device("cpu"))
 
     all_runs_accs = torch.tensor(all_runs_accs)
     print("* ============================= ALL RUNS =============================")
-    print(f"Best Val Acc: {all_runs_accs[:, 0].max().item():.4f}, Best Test Acc: {all_runs_accs[:, 1].max().item():.4f}.")
-    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item():.4f} ± {all_runs_accs[:, 0].std().item():.4f}", 
-        f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item():.4f} ± {all_runs_accs[:, 1].std().item():.4f}.")
+    print(f"Best Val Acc: {all_runs_accs[:, 0].max().item()*100:.2f}, Best Test Acc: {all_runs_accs[:, 1].max().item()*100:.2f}.")
+    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item()*100:.2f} ± {all_runs_accs[:, 0].std().item()*100:.2f}", 
+        f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item()*100:.2f} ± {all_runs_accs[:, 1].std().item()*100:.2f}.")

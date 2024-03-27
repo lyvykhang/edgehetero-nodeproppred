@@ -1,7 +1,15 @@
 import torch
 from torch.utils.data import DataLoader
 import pandas as pd
-from transformers import TrainingArguments, Trainer, AutoTokenizer, AutoModelForSequenceClassification, DebertaV2TokenizerFast, DebertaV2ForSequenceClassification, EvalPrediction, DataCollatorWithPadding
+from transformers import (
+    TrainingArguments, 
+    Trainer, 
+    AutoTokenizer, 
+    AutoModelForSequenceClassification, 
+    DebertaV2TokenizerFast, 
+    DebertaV2ForSequenceClassification, 
+    EvalPrediction
+)
 from datasets import Dataset, DatasetDict
 from peft import get_peft_model, LoraConfig, PeftModel
 import evaluate
@@ -22,7 +30,6 @@ def preprocess(examples):
         padding=True,
         truncation=True,
         max_length=512,
-        # return_tensors="pt",
     )
     text_encoding["labels"] = examples["label"]
 
@@ -70,7 +77,6 @@ if __name__ == "__main__":
     with open(str(project_root / "config/data_generation_config.yaml")) as f:
         params_data_gen = yaml.load(f, Loader=yaml.FullLoader)
     
-    # should move these to a yaml
     parser = ArgumentParser()
     parser.add_argument("--random_state", type=int, default=1911)
     parser.add_argument("--model_name", type=str, default="allenai/scibert_scivocab_uncased")
@@ -95,7 +101,11 @@ if __name__ == "__main__":
     num_labels = data["paper"].y.unique().size()[0]
 
     path_to_data = str(Path(params_data_gen["data"]["path_to_metadata"][params["dataset"]]))
-    df = pd.read_parquet(path_to_data)[["label", "text_concat"]] # assuming pubmed for now.
+    df = pd.read_parquet(path_to_data)
+    if params["dataset"] == "ogbnarxiv":
+        df["text_concat"] = "[TITLE] " + df["title"] + " [ABSTRACT] " + df["abstract"]
+        df["label"] = data["paper"].y
+    df = df[["label", "text_concat"]]
 
     dataset = DatasetDict({
         "train": Dataset.from_pandas(df.iloc[data["paper"].train_idx], preserve_index=True), # __index_level_0__
