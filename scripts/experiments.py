@@ -1,14 +1,16 @@
 from pathlib import Path
 import os
 import yaml
-import utils
-import models
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import to_hetero
 from tqdm import tqdm
 from ogb.nodeproppred import Evaluator
+
+import utils
+import models
 
 
 def train(model, data, train_idx, optimizer):
@@ -39,6 +41,29 @@ def test(model, data, idx, dataset, out=None):
     return acc, loss
 
 
+def get_model(verbose=False):
+    num_layers = params["model"]["num_layers"]
+    in_channels = data["paper"].x.shape[1]
+    out_channels = len(torch.unique(data["paper"].y))
+    hidden_channels = params["model"]["hidden_channels"]
+    dropout = params["model"]["dropout"]
+
+    if params["model"]["name"] == "GCN":
+        model = models.GCN(num_layers, in_channels, out_channels, hidden_channels, dropout).to(DEVICE)
+    elif params["model"]["name"] == "SAGE":
+        model = models.SAGE(num_layers, in_channels, out_channels, hidden_channels, dropout).to(DEVICE)
+    elif params["model"]["name"] == "GCNJKNet":
+        model = models.GCNJKNet(num_layers, in_channels, out_channels, hidden_channels, dropout, mode="max").to(DEVICE)
+    elif params["model"]["name"] == "SGC":
+        model = models.SGC(num_layers, in_channels, out_channels).to(DEVICE)
+    
+    model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
+    if verbose:
+        print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+
+    return model
+
+
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Will run on: {DEVICE}.")
@@ -47,15 +72,26 @@ if __name__ == "__main__":
     os.chdir(project_root)
     with open(str(project_root / "config/experiments_config.yaml")) as f:
         params = yaml.load(f, Loader=yaml.FullLoader)
+    with open(str(project_root / "config/data_generation_config.yaml")) as f:
+        data_gen_params = yaml.load(f, Loader=yaml.FullLoader)
 
     path_to_data = str(Path(params["data"]["graph_dataset"][params["dataset"]]))
     data = torch.load(path_to_data)
 
     data = data.edge_type_subgraph(utils.edge_type_selection(params["edge_type_selection"][params["dataset"]]))
 
-    if params["use_scibert"]:
-        path_scibert = str(Path(params["data"]["embeddings"][params["dataset"]]))
-        data["paper"].x = torch.load(path_scibert)
+    if any(i in params["node_embs"] for i in ["simtg", "tape"]):
+        path_embs = str(Path(params["data"][f"{params['node_embs']}_embs"][params["dataset"]]))
+        if params["node_embs"] == "tape":
+            init_x_shape = (19717, 768) if params["dataset"] == "pubmed" else (data["paper"].num_nodes, 768)
+            features = np.array(np.memmap(path_embs, mode='r', dtype=np.float16, shape=init_x_shape))
+            if params["dataset"] == "pubmed":
+                features = np.delete(features, [2459], axis=0) # manually remove index corresponding to ID with no metadata from the precomputed embeddings.
+            data["paper"].x = torch.from_numpy(features).to(torch.float32)
+        else:
+            data["paper"].x = torch.load(path_embs).type(torch.float32)
+
+    print("Loaded pre-trained node embeddings of type={} and shape={}.".format(params["node_embs"], data["paper"].x.shape))
 
     data.to(DEVICE)
 
@@ -63,54 +99,27 @@ if __name__ == "__main__":
     all_runs_accs = []
 
     for run in range(params["runs"]):
-        if params["model"]["name"] == "GCN":
-            model = models.GCN(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"]).to(DEVICE)
-        elif params["model"]["name"] == "SAGE":
-            model = models.SAGE(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"]).to(DEVICE)
-        elif params["model"]["name"] == "GCNJKNet":
-            model = models.GCNJKNet(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y)), params["model"]["hidden_channels"], 
-                params["model"]["dropout"], mode="cat").to(DEVICE)
-        elif params["model"]["name"] == "SGC":
-            model = models.SGC(params["model"]["num_layers"], data["paper"].x.shape[1], 
-                len(torch.unique(data["paper"].y))).to(DEVICE)
+        model = get_model(verbose=True) if run == 0 else get_model()
         
-        model = to_hetero(model, data.metadata(), aggr="mean").to(DEVICE)
-        if run == 0:
-            print("No. parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
-        
-        if params["dataset"] == "ogbnarxiv":
+        if params["dataset"] == "ogbnarxiv" or (params["dataset"] == "pubmed" and data_gen_params["pubmed_fixed_split"]):
             train_idx, val_idx, test_idx = data["paper"].train_idx, data["paper"].val_idx, data["paper"].test_idx
-        else: # Randomly split nodes of each class.
-            splits = [torch.empty(0, dtype=torch.long)]*3
-            for i in range(0, data["paper"].y.unique().shape[0]):
-                per_class = torch.tensor(range(data["paper"].y.shape[0]))[(data["paper"].y == i).squeeze()]
-                per_class_split = utils.train_valid_test(set(per_class.tolist()), 0.2, 0.2, run) # use run no. as seed.
-                for j in range(0, 3):
-                    splits[j] = torch.cat((splits[j], per_class_split[j]))
-            train_idx, val_idx, test_idx = splits
+        else: # Randomly split nodes of each class; not compatible with SimTG (fixed split is required to finetune the LM).
+            data.to(torch.device("cpu"))
+            train_idx, val_idx, test_idx = utils.per_class_idx_split(data, run) # use run no. as seed.
+            data.to(DEVICE)
 
         optimizer = torch.optim.Adam(params=model.parameters(), 
             weight_decay=params["optimizer"]["weight_decay"], 
             lr=params["optimizer"]["lr"])
         
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=params["scheduler"]["factor"], 
-            patience=params["scheduler"]["patience"], 
-            threshold=params["scheduler"]["threshold"], 
-            min_lr=params["scheduler"]["min_lr"], 
-            cooldown=params["scheduler"]["cooldown"])
+        scheduler = torch.optim.lr_scheduler.LinearLR(optimizer)
 
         best_acc = best_epoch = -1
         for epoch in tqdm(range(params["epochs"]), desc=f"Run {run:02d}"):
             train_loss, out = train(model, data, train_idx, optimizer)
 
             val_acc, val_loss = test(model, data, val_idx, params["dataset"], out=out)
-            scheduler.step(val_loss)
+            scheduler.step()
 
             if val_acc > best_acc:
                 best_acc = val_acc
@@ -125,11 +134,12 @@ if __name__ == "__main__":
 
         tqdm.write(f"Run {run:02d}: Best Epoch {best_epoch:02d}, Best Val Acc {best_acc:.4f}, Test Acc {test_acc:.4f}.")
         all_runs_accs.append([best_acc, test_acc])
+        torch.cuda.empty_cache()
     
     # data.to(torch.device("cpu"))
 
     all_runs_accs = torch.tensor(all_runs_accs)
-    print(f"##### ALL RUNS #####")
-    print(f"Best Val Acc: {all_runs_accs[:, 0].max().item():.4f}, Best Test Acc: {all_runs_accs[:, 1].max().item():.4f}.")
-    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item():.4f} ± {all_runs_accs[:, 0].std().item():.4f}", 
-        f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item():.4f} ± {all_runs_accs[:, 1].std().item():.4f}.")
+    print("* ============================= ALL RUNS =============================")
+    print(f"Best Val Acc: {all_runs_accs[:, 0].max().item()*100:.2f}, Best Test Acc: {all_runs_accs[:, 1].max().item()*100:.2f}.")
+    print(f"Avg. Val Acc: {all_runs_accs[:, 0].mean().item()*100:.2f} ± {all_runs_accs[:, 0].std().item()*100:.2f}", 
+        f"Avg. Test Acc: {all_runs_accs[:, 1].mean().item()*100:.2f} ± {all_runs_accs[:, 1].std().item()*100:.2f}.")

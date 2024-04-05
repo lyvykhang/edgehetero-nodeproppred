@@ -1,4 +1,5 @@
 seed: 1911
+dataset: ogbnarxiv # ogbnarxiv/pubmed.
 data:
   path_to_metadata: 
     ogbnarxiv: "data/tables/ogbnarxiv_mag_metadata.parquet.gzip"
@@ -7,3 +8,4 @@ data:
   save_path:
     ogbnarxiv: "data/ogbnarxiv_heterodata.pt"
     pubmed: "data/pubmed_heterodata.pt"
+pubmed_fixed_split: True
