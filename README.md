@@ -1,34 +1,30 @@
-# edgehetero-nodeproppred
+# Article Classification with Graph Neural Networks and Multigraphs
+
+[![arXiv](https://img.shields.io/badge/arXiv-2309.11341-b31b1b.svg)](https://arxiv.org/abs/2309.11341)
 
 ![](ehgnn_cover_art.png)
 
-Repository for the "Improving Article Classification Using Edge-Heterogeneous Graph Neural Networks" 2022-2023 UvA MSc DS thesis project, in collaboration with Elsevier. Preprint on arXiv: https://arxiv.org/abs/2309.11341.
+Repository for the "Article Classification with Graph Neural Networks and Multigraphs" 2022-2023 UvA MSc Data Science thesis project, in collaboration with Elsevier.
 
-## Directory ##
+Accepted at [LREC-COLING 2024](https://lrec-coling-2024.org/list-of-accepted-papers/) main track.
+
+## Directory Overview ##
 ```
 edgehetero-nodeproppred/
 ├─ config/
 │  ├─ data_generation_config.yaml
 │  ├─ experiments_config.yaml
 ├─ data/
-│  ├─ embeddings/                               # downloaded separately (see below).
-│  │  ├─ ogbnarxiv_scibert_tensor_ordered.pt
-│  │  ├─ pubmed_scibert_tensor_ordered.pt
-│  ├─ tables/
-│  │  ├─ ogbnarxiv_mag_metadata.parquet.gzip    # extracted MAG metadata.
-│  │  ├─ pubmed_metadata.parquet.gzip           # extracted PubMed Central metadata.
-│  │  ├─ Pubmed-Diabetes.DIRECTED.cites.tab     # PubMed citation edge list.
-├─ models/
-├─ notebooks/                                   # preprocessing notebooks for reference only.
-│  ├─ ogbnarxiv_process_mag_data.ipynb
-│  ├─ pubmed_process_baseline_data.ipynb
+│  ├─ embeddings/                       # node features.                    
+│  ├─ tables/                           # MAG/PubMed metadata.
+├─ models/                              # for checkpoints.
+├─ notebooks/                           # metadata retrieval notebooks (for reference only).
 ├─ scripts/
-│  ├─ experiments.py
-│  ├─ models.py
-│  ├─ ogbnarxiv_hetero_transform.py
-│  ├─ pubmed_hetero_transform.py
+│  ├─ experiments.py                    # main GNN training script.
+│  ├─ models.py                         # GNN models.
+│  ├─ multigraph.py                     # convert datasets to multigraphs.
+│  ├─ simtg.py                          # SimTG LM PEFT.
 │  ├─ utils.py
-├─ ehgnn_ogbnarxiv_technical_report.pdf
 ```
 
 ## Requirements
@@ -41,31 +37,31 @@ edgehetero-nodeproppred/
 * tqdm
 * PyArrow
 * PyYAML
+#### Additional requirements for SimTG finetuning:
+* transformers 4.26.1
+* datasets 2.10.1
+* peft 0.7.1
+* evaluate 0.4.1
 
 ## Reproduce Experiments ##
 Repository should be cloned with Git LFS.
 
-The SciBERT embeddings are pre-computed; download links for [ogbn-arxiv](https://drive.google.com/file/d/1XubiRS2wqlR-_XcK7AGgITT0Cdx0mtdN/view?usp=share_link) and [PubMed](https://drive.google.com/file/d/1yrIJE0ko6sErUugBnN_GJCe-zqiDPwzV/view?usp=share_link). Place them in `data/embeddings`.
+Pre-computed SimTG ([Duan et al., 2023](https://github.com/vermouthdky/SimTeG)) and TAPE ([He et al., 2024](https://github.com/XiaoxinHe/TAPE)) embeddings for both datasets can be downloaded in [this Drive folder](https://drive.google.com/drive/folders/1NxouExEaUufrrkh7SI_8TBSfXB-dLM15?usp=sharing). Place them in `data/embeddings`.
 
-**Generate data**: run `python scripts/ogbnarxiv_hetero_transform.py` and/or `python scripts/pubmed_hetero_transform.py`, which generates and transforms the data object using the metadata files in `data/tables`.
+**Generate data**: run `python scripts/multigraph.py`, which generates and transforms the data object using the metadata files in `data/tables`. Specify the dataset to transform in `config/data_generation_config.yml`.
 
-**To reproduce**: run `python scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the ogbn-arxiv GCN results. 
+**To reproduce**: run `python scripts/experiments.py` to train model and print results. Dataset, model choice and all relevant parameters can be specified in `experiments_config.yaml`. The currently-set defaults will reproduce the ogbn-arxiv GraphSAGE results.
 
 ## Results ##
-10-run average results on full-supervised transductive node classification. See the paper for ablation results and parameter choices to reproduce individual cases.
+10-run average results on full-supervised transductive node classification using optimal multigraph configuration. See the paper for ablation results, baseline results on the unmodified graph, and parameter choices to reproduce individual cases.
 
-**ogbn-arxiv (provided split):**
-| Model  	| Val. Acc.     	| Test Acc.     	| # Params  	|
-|--------	|---------------	|---------------	|-----------	|
-| GCN    	| 75.86% ± 0.12 	| 74.61% ± 0.06 	| 621,944   	|
-| GCN+JK 	| 76.29% ± 0.07 	| 74.72% ± 0.24 	| 809,512   	|
-| SAGE   	| 76.05% ± 0.07 	| 74.61% ± 0.13 	| 1,242,488 	|
-| SGC    	| 75.15% ± 0.05 	| 74.19% ± 0.04 	| 92,280    	|
-
-**PubMed (60/20/20 random per-class):**
-| Model  	| Val. Acc.     	| Test Acc.     	| # Params  	|
-|--------	|---------------	|---------------	|-----------	|
-| GCN    	| 89.54% ± 0.25 	| 89.38% ± 0.40 	| 129,286   	|
-| GCN+JK 	| 89.53% ± 0.46 	| 89.39% ± 0.64 	| 34,499   	|
-| SAGE   	| 90.17% ± 0.38 	| 89.88% ± 0.47 	| 129,155 	|
-| SGC    	| 87.15% ± 0.38 	| 86.98% ± 0.49 	| 3,006    	|
+| Dataset    | GNN    | Default      | SimTG        | TAPE         |
+|------------|--------|--------------|--------------|--------------|
+| OGBN-arXiv | GCN    | 71.88 ± 0.06 | 77.30 ± 0.09 | 77.10 ± 0.10 |
+|            | GCN+JK | 71.56 ± 0.21 | 77.05 ± 0.10 | 76.66 ± 0.10 |
+|            | SAGE   | 71.37 ± 0.21 | 77.39 ± 0.15 | 76.68 ± 0.06 |
+|            | SGC    | 70.24 ± 0.05 | 77.24 ± 0.01 | 75.93 ± 0.17 |
+| PubMed     | GCN    | 89.15 ± 0.14 | 93.49 ± 0.16 | 93.59 ± 0.26 |
+|            | GCN+JK | 87.53 ± 0.62 | 94.11 ± 0.18 | 94.17 ± 0.13 |
+|            | SAGE   | 89.75 ± 0.09 | 95.51 ± 0.10 | 94.93 ± 0.13 |
+|            | SGC    | 86.56 ± 0.57 | 91.41 ± 0.13 | 91.20 ± 0.21 |
