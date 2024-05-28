@@ -1,12 +1,13 @@
 # Article Classification with Graph Neural Networks and Multigraphs
 
 [![arXiv](https://img.shields.io/badge/arXiv-2309.11341-b31b1b.svg)](https://arxiv.org/abs/2309.11341)
+![Static Badge](https://img.shields.io/badge/ACL_Anthology-2024.lrec--main.136-b31b1b)
 
 ![](ehgnn_cover_art.png)
 
 Repository for the "Article Classification with Graph Neural Networks and Multigraphs" 2022-2023 UvA MSc Data Science thesis project, in collaboration with Elsevier.
 
-Accepted at [LREC-COLING 2024](https://lrec-coling-2024.org/list-of-accepted-papers/) main track.
+Published as a conference paper at [LREC-COLING 2024](https://aclanthology.org/2024.lrec-main.136/) main track.
 
 ## Directory Overview ##
 ```
